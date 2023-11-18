@@ -1,3 +1,16 @@
+# Stripped ClassiCube
+
+Stripped ClassiCube is my attempt to strip ClassiCube to the bare minimum. Since GitHub won't
+let me set fork repositories to private, just have it.
+
+This will remove
+- Multiplayer support
+- The launcher
+- Internet dependencies
+- Support for certain platforms (Windows and Linux support will be kept)
+
+# Original readme's contents:
+
 ClassiCube is a custom Minecraft Classic compatible client written in C from scratch.<br>
 **It is not affiliated with (or supported by) Mojang AB, Minecraft, or Microsoft in any way.**
 

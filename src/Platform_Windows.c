@@ -285,77 +285,12 @@ cc_result File_Length(cc_file file, cc_uint32* len) {
 	return *len != INVALID_FILE_SIZE ? 0 : GetLastError();
 }
 
-
 /*########################################################################################################################*
 *--------------------------------------------------------Threading--------------------------------------------------------*
 *#############################################################################################################p############*/
 void Thread_Sleep(cc_uint32 milliseconds) { Sleep(milliseconds); }
-static DWORD WINAPI ExecThread(void* param) {
-	Thread_StartFunc func = (Thread_StartFunc)param;
-	func();
-	return 0;
-}
 
-void* Thread_Create(Thread_StartFunc func) {
-	DWORD threadID;
-	void* handle = CreateThread(NULL, 0, ExecThread, (void*)func, CREATE_SUSPENDED, &threadID);
-	if (!handle) {
-		Logger_Abort2(GetLastError(), "Creating thread");
-	}
-	return handle;
-}
-
-void Thread_Start2(void* handle, Thread_StartFunc func) {
-	ResumeThread((HANDLE)handle);
-}
-
-void Thread_Detach(void* handle) {
-	if (!CloseHandle((HANDLE)handle)) {
-		Logger_Abort2(GetLastError(), "Freeing thread handle");
-	}
-}
-
-void Thread_Join(void* handle) {
-	WaitForSingleObject((HANDLE)handle, INFINITE);
-	Thread_Detach(handle);
-}
-
-void* Mutex_Create(void) {
-	CRITICAL_SECTION* ptr = (CRITICAL_SECTION*)Mem_Alloc(1, sizeof(CRITICAL_SECTION), "mutex");
-	InitializeCriticalSection(ptr);
-	return ptr;
-}
-
-void Mutex_Free(void* handle)   { 
-	DeleteCriticalSection((CRITICAL_SECTION*)handle); 
-	Mem_Free(handle);
-}
-void Mutex_Lock(void* handle)   { EnterCriticalSection((CRITICAL_SECTION*)handle); }
-void Mutex_Unlock(void* handle) { LeaveCriticalSection((CRITICAL_SECTION*)handle); }
-
-void* Waitable_Create(void) {
-	void* handle = CreateEventA(NULL, false, false, NULL);
-	if (!handle) {
-		Logger_Abort2(GetLastError(), "Creating waitable");
-	}
-	return handle;
-}
-
-void Waitable_Free(void* handle) {
-	if (!CloseHandle((HANDLE)handle)) {
-		Logger_Abort2(GetLastError(), "Freeing waitable");
-	}
-}
-
-void Waitable_Signal(void* handle) { SetEvent((HANDLE)handle); }
-void Waitable_Wait(void* handle) {
-	WaitForSingleObject((HANDLE)handle, INFINITE);
-}
-
-void Waitable_WaitFor(void* handle, cc_uint32 milliseconds) {
-	WaitForSingleObject((HANDLE)handle, milliseconds);
-}
-
+//
 
 /*########################################################################################################################*
 *--------------------------------------------------------Font/Text--------------------------------------------------------*

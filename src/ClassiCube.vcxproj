@@ -374,7 +374,6 @@
   <ItemGroup>
     <ClInclude Include="Animations.h" />
     <ClInclude Include="EntityRenderers.h" />
-    <ClInclude Include="LBackend.h" />
     <ClInclude Include="Http.h" />
     <ClInclude Include="Audio.h" />
     <ClInclude Include="AxisLinesRenderer.h" />
@@ -397,10 +396,6 @@
     <ClInclude Include="Deflate.h" />
     <ClInclude Include="Gui.h" />
     <ClInclude Include="HeldBlockRenderer.h" />
-    <ClInclude Include="Launcher.h" />
-    <ClInclude Include="LScreens.h" />
-    <ClInclude Include="LWeb.h" />
-    <ClInclude Include="LWidgets.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="Input.h" />
     <ClInclude Include="Menus.h" />
@@ -416,7 +411,6 @@
     <ClInclude Include="BlockPhysics.h" />
     <ClInclude Include="Picking.h" />
     <ClInclude Include="PickedPosRenderer.h" />
-    <ClInclude Include="Resources.h" />
     <ClInclude Include="Screens.h" />
     <ClInclude Include="SelectionBox.h" />
     <ClInclude Include="Server.h" />
@@ -482,11 +476,6 @@
     <ClCompile Include="Http_Web.c" />
     <ClCompile Include="Http_Worker.c" />
     <ClCompile Include="Inventory.c" />
-    <ClCompile Include="Launcher.c" />
-    <ClCompile Include="LBackend.c" />
-    <ClCompile Include="LScreens.c" />
-    <ClCompile Include="LWeb.c" />
-    <ClCompile Include="LWidgets.c" />
     <ClCompile Include="Generator.c" />
     <ClCompile Include="Deflate.c" />
     <ClCompile Include="Model.c" />
@@ -517,7 +506,6 @@
     <ClCompile Include="PickedPosRenderer.c" />
     <ClCompile Include="Picking.c" />
     <ClCompile Include="Program.c" />
-    <ClCompile Include="Resources.c" />
     <ClCompile Include="Screens.c" />
     <ClCompile Include="SelectionBox.c" />
     <ClCompile Include="Server.c" />

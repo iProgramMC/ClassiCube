@@ -120,6 +120,7 @@ typedef cc_uint8  cc_bool;
 // STRIPPED patches
 #undef CC_BUILD_FREETYPE
 #define CC_BUILD_NOSOUNDS
+#define CC_BUILD_NOMUSIC
 
 
 

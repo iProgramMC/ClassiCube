@@ -9,6 +9,8 @@ This will remove
 - Internet dependencies
 - Support for certain platforms (Windows and Linux support will be kept)
 
+I do realize there's ways to disable this stuff, but I'd rather not.
+
 # Original readme's contents:
 
 ClassiCube is a custom Minecraft Classic compatible client written in C from scratch.<br>

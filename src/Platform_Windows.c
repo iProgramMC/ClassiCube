@@ -490,15 +490,14 @@ cc_result Updater_SetNewBuildTime(cc_uint64 timestamp) {
 	return res;
 }
 
-
 /*########################################################################################################################*
 *-------------------------------------------------------Dynamic lib-------------------------------------------------------*
 *#########################################################################################################################*/
-const cc_string DynamicLib_Ext = String_FromConst(".dll");
+const cc_string SDynamicLib_Ext = String_FromConst(".dll");
 static cc_result dynamicErr;
 static cc_bool loadingPlugin;
 
-void* DynamicLib_Load2(const cc_string* path) {
+void* NDynamicLib_Load2(const cc_string* path) {
 	static cc_string plugins_dir = String_FromConst("plugins/");
 	cc_winstring str;
 	void* lib;
@@ -516,13 +515,13 @@ void* DynamicLib_Load2(const cc_string* path) {
 	return lib;
 }
 
-void* DynamicLib_Get2(void* lib, const char* name) {
+void* NDynamicLib_Get2(void* lib, const char* name) {
 	void* addr = GetProcAddress((HMODULE)lib, name);
 	if (!addr) dynamicErr = GetLastError();
 	return addr;
 }
 
-cc_bool DynamicLib_DescribeError(cc_string* dst) {
+cc_bool NDynamicLib_DescribeError(cc_string* dst) {
 	cc_result res = dynamicErr;
 	dynamicErr = 0; /* Reset error (match posix behaviour) */
 
@@ -548,7 +547,6 @@ cc_bool DynamicLib_DescribeError(cc_string* dst) {
 	}
 	return true;
 }
-
 
 /*########################################################################################################################*
 *--------------------------------------------------------Platform---------------------------------------------------------*
@@ -582,30 +580,12 @@ static void Platform_InitStopwatch(void) {
 	} else { sw_freqDiv = 10; }
 }
 
-static BOOL (WINAPI *_AttachConsole)(DWORD processId);
-static BOOL (WINAPI *_IsDebuggerPresent)(void);
-
-static void LoadKernelFuncs(void) {
-	static const struct DynamicLibSym funcs[] = {
-		DynamicLib_Sym(AttachConsole), DynamicLib_Sym(IsDebuggerPresent)
-	};
-
-	static const cc_string kernel32 = String_FromConst("KERNEL32.DLL");
-	void* lib;
-	DynamicLib_LoadAll(&kernel32, funcs, Array_Elems(funcs), &lib);
-}
-
 void Platform_Init(void) {
 	WSADATA wsaData;
 	cc_result res;
 
 	Platform_InitStopwatch();
 	heap = GetProcessHeap();
-
-	LoadKernelFuncs();
-	if (_IsDebuggerPresent) hasDebugger = _IsDebuggerPresent();
-	/* For when user runs from command prompt */
-	if (_AttachConsole) _AttachConsole(-1); /* ATTACH_PARENT_PROCESS */
 
 	conHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 	if (conHandle == INVALID_HANDLE_VALUE) conHandle = NULL;
@@ -636,47 +616,109 @@ cc_bool Platform_DescribeError(cc_result res, cc_string* dst) {
 /*########################################################################################################################*
 *-------------------------------------------------------Encryption--------------------------------------------------------*
 *#########################################################################################################################*/
-static BOOL (WINAPI *_CryptProtectData  )(DATA_BLOB* dataIn, PCWSTR dataDescr, PVOID entropy, PVOID reserved, PVOID promptStruct, DWORD flags, DATA_BLOB* dataOut);
-static BOOL (WINAPI *_CryptUnprotectData)(DATA_BLOB* dataIn, PWSTR* dataDescr, PVOID entropy, PVOID reserved, PVOID promptStruct, DWORD flags, DATA_BLOB* dataOut);
+/* Encrypts data using XTEA block cipher, with OS specific method to get machine-specific key */
 
-static void LoadCryptFuncs(void) {
-	static const struct DynamicLibSym funcs[] = {
-		DynamicLib_Sym(CryptProtectData), DynamicLib_Sym(CryptUnprotectData)
-	};
+static void EncipherBlock(cc_uint32* v, const cc_uint32* key, cc_string* dst) {
+	cc_uint32 v0 = v[0], v1 = v[1], sum = 0, delta = 0x9E3779B9;
+	int i;
 
-	static const cc_string crypt32 = String_FromConst("CRYPT32.DLL");
-	void* lib;
-	DynamicLib_LoadAll(&crypt32, funcs, Array_Elems(funcs), &lib);
+	for (i = 0; i < 12; i++) {
+		v0 += (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (sum + key[sum & 3]);
+		sum += delta;
+		v1 += (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (sum + key[(sum >> 11) & 3]);
+	}
+	v[0] = v0; v[1] = v1;
+	String_AppendAll(dst, v, 8);
+}
+
+static void DecipherBlock(cc_uint32* v, const cc_uint32* key) {
+	cc_uint32 v0 = v[0], v1 = v[1], delta = 0x9E3779B9, sum = delta * 12;
+	int i;
+
+	for (i = 0; i < 12; i++) {
+		v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (sum + key[(sum >> 11) & 3]);
+		sum -= delta;
+		v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (sum + key[sum & 3]);
+	}
+	v[0] = v0; v[1] = v1;
+}
+
+#define ENC1 0xCC005EC0
+#define ENC2 0x0DA4A0DE 
+#define ENC3 0xC0DED000
+#define MACHINEID_LEN 32
+#define ENC_SIZE 8 /* 2 32 bit ints per block */
+
+int PackedCol_DeHex(char hex);
+
+/* "b3 c5a-0d9" --> 0xB3C5A0D9 */
+static void DecodeMachineID(char* tmp, int len, cc_uint32* key) {
+	int hex[MACHINEID_LEN] = { 0 }, i, j, c;
+	cc_uint8* dst = (cc_uint8*)key;
+
+	/* Get each valid hex character */
+	for (i = 0, j = 0; i < len && j < MACHINEID_LEN; i++) {
+		c = PackedCol_DeHex(tmp[i]);
+		if (c != -1) hex[j++] = c;
+	}
+
+	for (i = 0; i < MACHINEID_LEN / 2; i++) {
+		dst[i] = (hex[i * 2] << 4) | hex[i * 2 + 1];
+	}
+}
+
+static cc_result GetMachineID(cc_uint32* key) {
+	// hack
+	*key = GetTickCount();
+
+	return 0;
 }
 
 cc_result Platform_Encrypt(const void* data, int len, cc_string* dst) {
-	DATA_BLOB input, output;
-	int i;
-	input.cbData = len; input.pbData = (BYTE*)data;
+	const cc_uint8* src = (const cc_uint8*)data;
+	cc_uint32 header[4], key[4];
+	cc_result res;
+	if ((res = GetMachineID(key))) return res;
 
-	if (!_CryptProtectData) LoadCryptFuncs();
-	if (!_CryptProtectData) return ERR_NOT_SUPPORTED;
-	if (!_CryptProtectData(&input, NULL, NULL, NULL, NULL, 0, &output)) return GetLastError();
+	header[0] = ENC1; header[1] = ENC2;
+	header[2] = ENC3; header[3] = len;
+	EncipherBlock(header + 0, key, dst);
+	EncipherBlock(header + 2, key, dst);
 
-	for (i = 0; i < output.cbData; i++) {
-		String_Append(dst, output.pbData[i]);
+	for (; len > 0; len -= ENC_SIZE, src += ENC_SIZE) {
+		header[0] = 0; header[1] = 0;
+		Mem_Copy(header, src, min(len, ENC_SIZE));
+		EncipherBlock(header, key, dst);
 	}
-	LocalFree(output.pbData);
 	return 0;
 }
 cc_result Platform_Decrypt(const void* data, int len, cc_string* dst) {
-	DATA_BLOB input, output;
-	int i;
-	input.cbData = len; input.pbData = (BYTE*)data;
+	const cc_uint8* src = (const cc_uint8*)data;
+	cc_uint32 header[4], key[4];
+	cc_result res;
+	int dataLen;
 
-	if (!_CryptUnprotectData) LoadCryptFuncs();
-	if (!_CryptUnprotectData) return ERR_NOT_SUPPORTED;
-	if (!_CryptUnprotectData(&input, NULL, NULL, NULL, NULL, 0, &output)) return GetLastError();
+	/* Total size must be >= header size */
+	if (len < 16) return ERR_END_OF_STREAM;
+	if ((res = GetMachineID(key))) return res;
 
-	for (i = 0; i < output.cbData; i++) {
-		String_Append(dst, output.pbData[i]);
+	Mem_Copy(header, src, 16);
+	DecipherBlock(header + 0, key);
+	DecipherBlock(header + 2, key);
+
+	if (header[0] != ENC1 || header[1] != ENC2 || header[2] != ENC3) return ERR_INVALID_ARGUMENT;
+	len -= 16; src += 16;
+
+	if (header[3] > len) return ERR_INVALID_ARGUMENT;
+	dataLen = header[3];
+
+	for (; dataLen > 0; len -= ENC_SIZE, src += ENC_SIZE, dataLen -= ENC_SIZE) {
+		header[0] = 0; header[1] = 0;
+		Mem_Copy(header, src, min(len, ENC_SIZE));
+
+		DecipherBlock(header, key);
+		String_AppendAll(dst, header, min(dataLen, ENC_SIZE));
 	}
-	LocalFree(output.pbData);
 	return 0;
 }
 

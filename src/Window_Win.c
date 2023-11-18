@@ -276,21 +276,10 @@ static LRESULT CALLBACK Window_Procedure(HWND handle, UINT message, WPARAM wPara
 *--------------------------------------------------Public implementation--------------------------------------------------*
 *#########################################################################################################################*/
 void Window_Init(void) {
-	static const struct DynamicLibSym funcs[] = {
-		DynamicLib_Sym(RegisterRawInputDevices),
-		DynamicLib_Sym(GetRawInputData),
-		DynamicLib_Sym(SetProcessDPIAware)
-	};
-	static const cc_string user32 = String_FromConst("USER32.DLL");
 	void* lib;
 	HDC hdc;
 
-	DynamicLib_LoadAll(&user32, funcs, Array_Elems(funcs), &lib);
 	Input.Sources = INPUT_SOURCE_NORMAL;
-
-	/* Enable high DPI support */
-	DisplayInfo.DPIScaling = Options_GetBool(OPT_DPI_SCALING, false);
-	if (DisplayInfo.DPIScaling && _SetProcessDPIAware) _SetProcessDPIAware();
 
 	hdc = GetDC(NULL);
 	DisplayInfo.Width  = GetSystemMetrics(SM_CXSCREEN);
@@ -782,7 +771,7 @@ void GLContext_Create(void) {
 	}
 
 	ctx_DC = wglGetCurrentDC();
-	wglSwapIntervalEXT = (FP_SWAPINTERVAL)GLContext_GetAddress("wglSwapIntervalEXT");
+	//wglSwapIntervalEXT = (FP_SWAPINTERVAL)GLContext_GetAddress("wglSwapIntervalEXT");
 }
 
 void GLContext_Update(void) { }
@@ -795,18 +784,6 @@ void GLContext_Free(void) {
 
 /* https://www.khronos.org/opengl/wiki/Load_OpenGL_Functions#Windows */
 #define GLContext_IsInvalidAddress(ptr) (ptr == (void*)0 || ptr == (void*)1 || ptr == (void*)-1 || ptr == (void*)2)
-
-void* GLContext_GetAddress(const char* function) {
-	static const cc_string glPath = String_FromConst("OPENGL32.dll");
-	static void* lib;
-
-	void* addr = (void*)wglGetProcAddress(function);
-	if (!GLContext_IsInvalidAddress(addr)) return addr;
-
-	/* Some drivers return NULL from wglGetProcAddress for core OpenGL functions */
-	if (!lib) lib = DynamicLib_Load2(&glPath);
-	return DynamicLib_Get2(lib, function);
-}
 
 cc_bool GLContext_SwapBuffers(void) {
 	if (!SwapBuffers(ctx_DC)) Logger_Abort2(GetLastError(), "Failed to swap buffers");

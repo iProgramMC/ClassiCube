@@ -610,6 +610,16 @@ static void NotchyGen_PlantTrees(void) {
 	}
 }
 
+#ifdef CC_BUILD_WIN
+#include <Windows.h>
+void Log(const char*str) {
+	OutputDebugStringA(str);
+	OutputDebugStringA("\n");
+}
+#else
+void Log(const char*) {}
+#endif
+
 void NotchyGen_Generate(void) {
 	Gen_Init();
 	Heightmap = (cc_int16*)Mem_Alloc(World.Width * World.Length, 2, "gen heightmap");
@@ -618,21 +628,35 @@ void NotchyGen_Generate(void) {
 	waterLevel = World.Height / 2;	
 	minHeight  = World.Height;
 
+	Log("Heightmap");
 	NotchyGen_CreateHeightmap();
+	Log("Creating strata");
 	NotchyGen_CreateStrata();
+	Log("Carving");
 	NotchyGen_CarveCaves();
+	Log("Creating coal ores");
 	NotchyGen_CarveOreVeins(0.9f, "Carving coal ore", BLOCK_COAL_ORE);
+	Log("Creating iron ores");
 	NotchyGen_CarveOreVeins(0.7f, "Carving iron ore", BLOCK_IRON_ORE);
+	Log("Creating gold ores");
 	NotchyGen_CarveOreVeins(0.5f, "Carving gold ore", BLOCK_GOLD_ORE);
 
+	Log("Flooding Water Borders");
 	NotchyGen_FloodFillWaterBorders();
+	Log("Flooding Water");
 	NotchyGen_FloodFillWater();
+	Log("Flooding Lava");
 	NotchyGen_FloodFillLava();
 
+	Log("Creating Surface");
 	NotchyGen_CreateSurfaceLayer();
+	Log("Planting Flowers");
 	NotchyGen_PlantFlowers();
+	Log("Planting Mushrooms");
 	NotchyGen_PlantMushrooms();
+	Log("Planting Trees");
 	NotchyGen_PlantTrees();
+	Log("Generation Done !");
 
 	Mem_Free(Heightmap);
 	Heightmap = NULL;

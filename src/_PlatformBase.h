@@ -83,34 +83,3 @@ int Stopwatch_ElapsedMS(cc_uint64 beg, cc_uint64 end) {
 	if (raw > Int32_MaxValue) return Int32_MaxValue / 1000;
 	return (int)raw / 1000;
 }
-
-
-/*########################################################################################################################*
-*-------------------------------------------------------Dynamic lib-------------------------------------------------------*
-*#########################################################################################################################*/
-cc_result DynamicLib_Load(const cc_string* path, void** lib) {
-	*lib = DynamicLib_Load2(path);
-	return *lib == NULL;
-}
-cc_result DynamicLib_Get(void* lib, const char* name, void** symbol) {
-	*symbol = DynamicLib_Get2(lib, name);
-	return *symbol == NULL;
-}
-
-
-cc_bool DynamicLib_LoadAll(const cc_string* path, const struct DynamicLibSym* syms, int count, void** _lib) {
-	int i, loaded = 0;
-	void* addr;
-	void* lib;
-
-	lib   = DynamicLib_Load2(path);
-	*_lib = lib;
-	if (!lib) { Logger_DynamicLibWarn("loading", path); return false; }
-
-	for (i = 0; i < count; i++) {
-		addr = DynamicLib_Get2(lib, syms[i].name);
-		if (addr) loaded++;
-		*syms[i].symAddr = addr;
-	}
-	return loaded == count;
-}

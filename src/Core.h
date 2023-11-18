@@ -121,6 +121,8 @@ typedef cc_uint8  cc_bool;
 #undef CC_BUILD_FREETYPE
 #define CC_BUILD_NOSOUNDS
 #define CC_BUILD_NOMUSIC
+#define CC_BUILD_MINFILES
+#define CC_BUILD_GL
 
 
 
@@ -146,7 +148,7 @@ typedef cc_uint8  cc_bool;
 	#undef CC_BUILD_FREETYPE
 #elif defined _WIN32
 	#define CC_BUILD_WIN
-	#define CC_BUILD_D3D9
+	//#define CC_BUILD_D3D9
 	#define CC_BUILD_WINGUI
 	#define CC_BUILD_WININET
 	#define CC_BUILD_WINMM

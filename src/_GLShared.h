@@ -23,10 +23,10 @@
 *---------------------------------------------------------General---------------------------------------------------------*
 *#########################################################################################################################*/
 static void GLContext_GetAll(const struct DynamicLibSym* syms, int count) {
-	int i;
-	for (i = 0; i < count; i++) {
-		*syms[i].symAddr = GLContext_GetAddress(syms[i].name);
-	}
+	//int i;
+	//for (i = 0; i < count; i++) {
+	//	*syms[i].symAddr = GLContext_GetAddress(syms[i].name);
+	//}
 }
 
 static void GL_UpdateVsync(void) {

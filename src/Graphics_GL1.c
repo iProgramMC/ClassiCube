@@ -176,13 +176,7 @@ static void (APIENTRY *_glDrawElements)(GLenum mode, GLsizei count,    GLenum ty
 static void (APIENTRY *_glTexCoordPointer)(GLint size, GLenum type, GLsizei stride, const GLvoid* pointer);
 static void (APIENTRY *_glVertexPointer)(GLint size,   GLenum type, GLsizei stride, const GLvoid* pointer);
 
-static const struct DynamicLibSym coreFuncs[] = {
-	DynamicLib_Sym2("glColorPointer",    glColorPointer),
-	DynamicLib_Sym2("glTexCoordPointer", glTexCoordPointer), DynamicLib_Sym2("glDrawElements", glDrawElements),
-	DynamicLib_Sym2("glVertexPointer",  glVertexPointer)
-};
 static void LoadCoreFuncs(void) {
-	GLContext_GetAll(coreFuncs, Array_Elems(coreFuncs));
 }
 #else
 #define _glColorPointer    glColorPointer
@@ -678,6 +672,7 @@ static void OpenGL11Fallback(void) {
 #endif
 
 static void GLBackend_Init(void) {
+	/*
 	static const struct DynamicLibSym coreVboFuncs[] = {
 		DynamicLib_Sym2("glBindBuffer",    glBindBuffer), DynamicLib_Sym2("glDeleteBuffers", glDeleteBuffers),
 		DynamicLib_Sym2("glGenBuffers",    glGenBuffers), DynamicLib_Sym2("glBufferData",    glBufferData),
@@ -688,6 +683,7 @@ static void GLBackend_Init(void) {
 		DynamicLib_Sym2("glGenBuffersARB",    glGenBuffers), DynamicLib_Sym2("glBufferDataARB",    glBufferData),
 		DynamicLib_Sym2("glBufferSubDataARB", glBufferSubData)
 	};
+	*/
 	static const cc_string vboExt = String_FromConst("GL_ARB_vertex_buffer_object");
 	cc_string extensions = String_FromReadonly((const char*)glGetString(GL_EXTENSIONS));
 	const GLubyte* ver   = glGetString(GL_VERSION);
@@ -700,13 +696,13 @@ static void GLBackend_Init(void) {
 	customMipmapsLevels = true;
 
 	/* Supported in core since 1.5 */
-	if (major > 1 || (major == 1 && minor >= 5)) {
-		GLContext_GetAll(coreVboFuncs, Array_Elems(coreVboFuncs));
-	} else if (String_CaselessContains(&extensions, &vboExt)) {
-		GLContext_GetAll(arbVboFuncs,  Array_Elems(arbVboFuncs));
-	} else {
-		OpenGL11Fallback();
-	}
+	//if (major > 1 || (major == 1 && minor >= 5)) {
+	//	GLContext_GetAll(coreVboFuncs, Array_Elems(coreVboFuncs));
+	//} else if (String_CaselessContains(&extensions, &vboExt)) {
+	//	GLContext_GetAll(arbVboFuncs,  Array_Elems(arbVboFuncs));
+	//} else {
+	OpenGL11Fallback();
+	//}
 }
 #endif
 #endif

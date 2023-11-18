@@ -103,32 +103,6 @@ cc_result Updater_MarkExecutable(void);
 /* Sets the last time UPDATE_FILE file was modified, as a unix timestamp. */
 cc_result Updater_SetNewBuildTime(cc_uint64 timestamp);
 
-/* TODO: Rename _Load2 to _Load on next plugin API version */
-/* Attempts to load a native dynamic library from the given path. */
-CC_API void* DynamicLib_Load2(const cc_string* path);
-/* Attempts to get the address of the symbol in the given dynamic library. */
-/* NOTE: Do NOT use this to load OpenGL functions, use GLContext_GetAddress. */
-CC_API void* DynamicLib_Get2(void* lib, const char* name);
-/* Outputs more detailed information about errors with the DynamicLib functions. */
-/* NOTE: You MUST call this immediately after DynamicLib_Load2/DynamicLib_Get2 returns NULL. */
-CC_API cc_bool DynamicLib_DescribeError(cc_string* dst);
-
-/* The default file extension used for dynamic libraries on this platform. */
-extern const cc_string DynamicLib_Ext;
-#define DYNAMICLIB_QUOTE(x) #x
-#define DynamicLib_Sym(sym) { DYNAMICLIB_QUOTE(sym), (void**)&_ ## sym }
-#define DynamicLib_Sym2(name, sym) { name,           (void**)&_ ## sym }
-
-CC_API cc_result DynamicLib_Load(const cc_string* path, void** lib); /* OBSOLETE */
-CC_API cc_result DynamicLib_Get(void* lib, const char* name, void** symbol); /* OBSOLETE */
-/* Contains a name and a pointer to variable that will hold the loaded symbol */
-/*  static int (APIENTRY *_myGetError)(void); --- (for example) */
-/*  static struct DynamicLibSym sym = { "myGetError", (void**)&_myGetError }; */
-struct DynamicLibSym { const char* name; void** symAddr; };
-/* Loads all symbols using DynamicLib_Get2 in the given list */
-/* Returns true if all symbols were successfully retrieved */
-cc_bool DynamicLib_LoadAll(const cc_string* path, const struct DynamicLibSym* syms, int count, void** lib);
-
 /* Allocates a block of memory, with undetermined contents. Returns NULL on allocation failure. */
 CC_API void* Mem_TryAlloc(cc_uint32 numElems, cc_uint32 elemsSize);
 /* Allocates a block of memory, with contents of all 0. Returns NULL on allocation failure. */

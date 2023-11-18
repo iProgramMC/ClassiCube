@@ -20,8 +20,8 @@
 
 const cc_result ReturnCode_FileShareViolation = 1000000000; // not used
 const cc_result ReturnCode_FileNotFound     = ENOENT;
-const cc_result ReturnCode_SocketInProgess  = EINPROGRESS;
-const cc_result ReturnCode_SocketWouldBlock = EWOULDBLOCK;
+const cc_result ReturnCode_SocketInProgess = 567456;
+const cc_result ReturnCode_SocketWouldBlock = 675364;
 const cc_result ReturnCode_DirectoryExists  = EEXIST;
 const char* Platform_AppNameSuffix = " PSP";
 
@@ -287,120 +287,6 @@ void Waitable_WaitFor(void* handle, cc_uint32 milliseconds) {
 	int res = sceKernelWaitEventFlag((int)handle, 0x1, PSP_EVENT_WAITAND | PSP_EVENT_WAITCLEAR, &match, &timeout);
 	if (res < 0) Logger_Abort2(res, "Event timed wait");
 }
-
-
-/*########################################################################################################################*
-*---------------------------------------------------------Socket----------------------------------------------------------*
-*#########################################################################################################################*/
-union SocketAddress {
-	struct sockaddr raw;
-	struct sockaddr_in v4;
-};
-
-static int ParseHost(union SocketAddress* addr, const char* host) {
-	char buf[1024];
-	int rid, ret;
-
-	if (sceNetResolverCreate(&rid, buf, sizeof(buf)) < 0) return 0;
-
-	ret = sceNetResolverStartNtoA(rid, host, &addr->v4.sin_addr, 1 /* timeout */, 5 /* retries */);
-	sceNetResolverDelete(rid);
-	return ret >= 0;
-}
-
-static int ParseAddress(union SocketAddress* addr, const cc_string* address) {
-	char str[NATIVE_STR_LEN];
-	String_EncodeUtf8(str, address);
-
-	if (sceNetInetInetPton(AF_INET,str, &addr->v4.sin_addr) > 0) return true;
-	return ParseHost(addr, str);
-}
-
-int Socket_ValidAddress(const cc_string* address) {
-	union SocketAddress addr;
-	return ParseAddress(&addr, address);
-}
-
-cc_result Socket_Connect(cc_socket* s, const cc_string* address, int port, cc_bool nonblocking) {
-	union SocketAddress addr;
-	int res;
-
-	*s = -1;
-	if (!ParseAddress(&addr, address)) return ERR_INVALID_ARGUMENT;
-
-	*s = sceNetInetSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (*s < 0) return sceNetInetGetErrno();
-	
-	if (nonblocking) {
-		int on = 1;
-		sceNetInetSetsockopt(*s, SOL_SOCKET, SO_NONBLOCK, &on, sizeof(int));
-	}
-	
-	addr.v4.sin_family = AF_INET;
-	addr.v4.sin_port   = htons(port);
-
-	res = sceNetInetConnect(*s, &addr.raw, sizeof(addr.v4));
-	return res < 0 ? sceNetInetGetErrno() : 0;
-}
-
-cc_result Socket_Read(cc_socket s, cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	int recvCount = sceNetInetRecv(s, data, count, 0);
-	if (recvCount < 0) { *modified = recvCount; return 0; }
-	
-	*modified = 0; 
-	return sceNetInetGetErrno();
-}
-
-cc_result Socket_Write(cc_socket s, const cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	int sentCount = sceNetInetSend(s, data, count, 0);
-	if (sentCount < 0) { *modified = sentCount; return 0; }
-	
-	*modified = 0; 
-	return sceNetInetGetErrno();
-}
-
-void Socket_Close(cc_socket s) {
-	sceNetInetShutdown(s, SHUT_RDWR);
-	sceNetInetClose(s);
-}
-
-static cc_result Socket_Poll(cc_socket s, int mode, cc_bool* success) {
-	fd_set set;
-	struct SceNetInetTimeval time = { 0 };
-	int selectCount;
-
-	FD_ZERO(&set);
-	FD_SET(s, &set);
-
-	if (mode == SOCKET_POLL_READ) {
-		selectCount = sceNetInetSelect(s + 1, &set, NULL, NULL, &time);
-	} else {
-		selectCount = sceNetInetSelect(s + 1, NULL, &set, NULL, &time);
-	}
-
-	if (selectCount == -1) {
-		*success = false; 
-		return errno;
-	}
-	
-	*success = FD_ISSET(s, &set) != 0; 
-	return 0;
-}
-
-cc_result Socket_CheckReadable(cc_socket s, cc_bool* readable) {
-	return Socket_Poll(s, SOCKET_POLL_READ, readable);
-}
-
-cc_result Socket_CheckWritable(cc_socket s, cc_bool* writable) {
-	socklen_t resultSize = sizeof(socklen_t);
-	cc_result res = Socket_Poll(s, SOCKET_POLL_WRITE, writable);
-	if (res || *writable) return res;
-
-	// https://stackoverflow.com/questions/29479953/so-error-value-after-successful-socket-operation
-	sceNetInetGetsockopt(s, SOL_SOCKET, SO_ERROR, &res, &resultSize);
-	return res;
-}
-
 
 /*########################################################################################################################*
 *--------------------------------------------------------Platform---------------------------------------------------------*

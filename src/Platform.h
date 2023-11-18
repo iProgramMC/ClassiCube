@@ -7,7 +7,6 @@ Copyright 2014-2023 ClassiCube | Licensed under BSD-3
 */
 struct DateTime;
 
-enum Socket_PollMode { SOCKET_POLL_READ, SOCKET_POLL_WRITE };
 #if defined CC_BUILD_WIN || defined CC_BUILD_XBOX
 typedef cc_uintptr cc_socket;
 typedef void* cc_file;
@@ -241,24 +240,6 @@ CC_API void  Waitable_WaitFor(void* handle, cc_uint32 milliseconds);
 
 /* Calls SysFonts_Register on each font that is available on this platform. */
 void Platform_LoadSysFonts(void);
-
-/* Checks if the given socket is currently readable (i.e. has data available to read) */
-/* NOTE: A closed socket is also considered readable */
-cc_result Socket_CheckReadable(cc_socket s, cc_bool* readable);
-/* Checks if the given socket is currently writable (i.e. has finished connecting) */
-cc_result Socket_CheckWritable(cc_socket s, cc_bool* writable);
-/* Returns non-zero if the given address is valid for a socket to connect to */
-int Socket_ValidAddress(const cc_string* address);
-
-/* Allocates a new socket and then begins connecting to the given address:port. */
-cc_result Socket_Connect(cc_socket* s, const cc_string* address, int port, cc_bool nonblocking);
-/* Attempts to read data from the given socket. */
-/* NOTE: A closed socket may set modified to 0, but still return 'success' (i.e. 0) */
-cc_result Socket_Read(cc_socket s, cc_uint8* data, cc_uint32 count, cc_uint32* modified);
-/* Attempts to write data to the given socket. */
-cc_result Socket_Write(cc_socket s, const cc_uint8* data, cc_uint32 count, cc_uint32* modified);
-/* Attempts to close the given socket. */
-void Socket_Close(cc_socket s);
 
 #ifdef CC_BUILD_MOBILE
 void Platform_ShareScreenshot(const cc_string* filename);

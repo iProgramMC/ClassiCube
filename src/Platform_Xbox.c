@@ -12,15 +12,14 @@
 #include <lwip/opt.h>
 #include <lwip/arch.h>
 #include <lwip/netdb.h>
-#include <lwip/sockets.h>
 #include <nxdk/net.h>
 #include <nxdk/mount.h>
 #include "_PlatformConsole.h"
 
 const cc_result ReturnCode_FileShareViolation = ERROR_SHARING_VIOLATION;
 const cc_result ReturnCode_FileNotFound     = ERROR_FILE_NOT_FOUND;
-const cc_result ReturnCode_SocketInProgess  = EINPROGRESS;
-const cc_result ReturnCode_SocketWouldBlock = EWOULDBLOCK;
+const cc_result ReturnCode_SocketInProgess = 567456;
+const cc_result ReturnCode_SocketWouldBlock = 675364;
 const cc_result ReturnCode_DirectoryExists  = ERROR_ALREADY_EXISTS;
 const char* Platform_AppNameSuffix = " XBox";
 
@@ -292,126 +291,6 @@ void Waitable_Wait(void* handle) {
 void Waitable_WaitFor(void* handle, cc_uint32 milliseconds) {
 	WaitForSingleObject((HANDLE)handle, milliseconds);
 }
-
-
-/*########################################################################################################################*
-*---------------------------------------------------------Socket----------------------------------------------------------*
-*#########################################################################################################################*/
-union SocketAddress {
-	struct sockaddr raw;
-	struct sockaddr_in v4;
-};
-
-static int ParseHost(union SocketAddress* addr, const char* host) {
-	struct addrinfo hints = { 0 };
-	struct addrinfo* result;
-	struct addrinfo* cur;
-	int found = 0, res;
-
-	hints.ai_family   = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-
-	res = lwip_getaddrinfo(host, NULL, &hints, &result);
-	if (res) return res;
-
-	for (cur = result; cur; cur = cur->ai_next) {
-		if (cur->ai_family != AF_INET) continue;
-		found = true;
-
-		Mem_Copy(addr, cur->ai_addr, cur->ai_addrlen);
-		break;
-	}
-
-	lwip_freeaddrinfo(result);
-	return found ? 0 : ERR_INVALID_ARGUMENT;
-}
-
-static int ParseAddress(union SocketAddress* addr, const cc_string* address) {
-	char str[NATIVE_STR_LEN];
-	String_EncodeUtf8(str, address);
-
-	if (inet_pton(AF_INET, str, &addr->v4.sin_addr) > 0) return 0;
-	return ParseHost(addr, str);
-}
-
-int Socket_ValidAddress(const cc_string* address) {
-	union SocketAddress addr;
-	return ParseAddress(&addr, address) == 0;
-}
-
-cc_result Socket_Connect(cc_socket* s, const cc_string* address, int port, cc_bool nonblocking) {
-	int family, addrSize = 0;
-	union SocketAddress addr;
-	int res;
-	// TODO TODO TODO TODO TODO
-	// if 'addrSize = 0' is removed, then the game never gets past 'Fetching cdn.classicube.net...'
-	// so probably relying on undefined behaviour somewhere...
-
-	*s  = -1;
-	res = ParseAddress(&addr, address);
-	if (res) return res;
-
-	*s = lwip_socket(AF_INET, SOCK_STREAM, 0);
-	if (*s == -1) return errno;
-
-	if (nonblocking) {
-		int blocking_raw = -1; /* non-blocking mode */
-		lwip_ioctl(*s, FIONBIO, &blocking_raw);
-	}
-
-	addr.v4.sin_family = AF_INET;
-	addr.v4.sin_port   = htons(port);
-
-	res = lwip_connect(*s, &addr.raw, sizeof(addr.v4));
-	return res == -1 ? errno : 0;
-}
-
-cc_result Socket_Read(cc_socket s, cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	int recvCount = lwip_recv(s, data, count, 0);
-	if (recvCount != -1) { *modified = recvCount; return 0; }
-	*modified = 0; return errno;
-}
-
-cc_result Socket_Write(cc_socket s, const cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	int sentCount = lwip_send(s, data, count, 0);
-	if (sentCount != -1) { *modified = sentCount; return 0; }
-	*modified = 0; return errno;
-}
-
-void Socket_Close(cc_socket s) {
-	lwip_shutdown(s, SHUT_RDWR);
-	lwip_close(s);
-}
-
-static cc_result Socket_Poll(cc_socket s, int mode, cc_bool* success) {
-	struct pollfd pfd;
-	int flags;
-
-	pfd.fd     = s;
-	pfd.events = mode == SOCKET_POLL_READ ? POLLIN : POLLOUT;
-	if (lwip_poll(&pfd, 1, 0) == -1) { *success = false; return errno; }
-	
-	/* to match select, closed socket still counts as readable */
-	flags    = mode == SOCKET_POLL_READ ? (POLLIN | POLLHUP) : POLLOUT;
-	*success = (pfd.revents & flags) != 0;
-	return 0;
-}
-
-cc_result Socket_CheckReadable(cc_socket s, cc_bool* readable) {
-	return Socket_Poll(s, SOCKET_POLL_READ, readable);
-}
-
-cc_result Socket_CheckWritable(cc_socket s, cc_bool* writable) {
-	socklen_t resultSize = sizeof(socklen_t);
-	cc_result res = Socket_Poll(s, SOCKET_POLL_WRITE, writable);
-	if (res || *writable) return res;
-
-	/* https://stackoverflow.com/questions/29479953/so-error-value-after-successful-socket-operation */
-	lwip_getsockopt(s, SOL_SOCKET, SO_ERROR, &res, &resultSize);
-	return res;
-}
-
 
 /*########################################################################################################################*
 *--------------------------------------------------------Platform---------------------------------------------------------*

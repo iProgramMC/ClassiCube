@@ -18,7 +18,6 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <net/net.h>
@@ -38,8 +37,8 @@ const cc_result ReturnCode_FileNotFound     = 0x80010006; // ENOENT;
 //const cc_result ReturnCode_SocketWouldBlock = 0x80010001; // EWOULDBLOCK;
 const cc_result ReturnCode_DirectoryExists  = 0x80010014; // EEXIST
 
-const cc_result ReturnCode_SocketInProgess  = NET_EINPROGRESS;
-const cc_result ReturnCode_SocketWouldBlock = NET_EWOULDBLOCK;
+const cc_result ReturnCode_SocketInProgess  = 567456;
+const cc_result ReturnCode_SocketWouldBlock = 675364;
 const char* Platform_AppNameSuffix = " PS3";
 
 
@@ -330,121 +329,6 @@ void Waitable_WaitFor(void* handle, cc_uint32 milliseconds) {
 	int res = sysSemWait(*sem, milliseconds * 1000);
 	if (res) Logger_Abort2(res, "Waitable wait for");
 }
-
-
-/*########################################################################################################################*
-*---------------------------------------------------------Socket----------------------------------------------------------*
-*#########################################################################################################################*/
-union SocketAddress {
-	struct sockaddr raw;
-	struct sockaddr_in v4;
-};
-
-static int ParseHost(union SocketAddress* addr, const char* host) {
-	struct net_hostent* res = netGetHostByName(host);
-	if (!res) return net_h_errno;
-	
-	// Must have at least one IPv4 address
-	if (res->h_addrtype != AF_INET) return ERR_INVALID_ARGUMENT;
-	if (!res->h_addr_list)       return ERR_INVALID_ARGUMENT;
-
-	// TODO probably wrong....
-	addr->v4.sin_addr = *(struct in_addr*)&res->h_addr_list;
-	return 0;
-}
-
-static int ParseAddress(union SocketAddress* addr, const cc_string* address) {
-	char str[NATIVE_STR_LEN];
-	String_EncodeUtf8(str, address);
-
-	if (inet_aton(str, &addr->v4.sin_addr) > 0) return 0;
-	return ParseHost(addr, str);
-}
-
-int Socket_ValidAddress(const cc_string* address) {
-	union SocketAddress addr;
-	return ParseAddress(&addr, address) == 0;
-}
-
-cc_result Socket_Connect(cc_socket* s, const cc_string* address, int port, cc_bool nonblocking) {
-	union SocketAddress addr;
-	int res;
-
-	*s  = -1;
-	res = ParseAddress(&addr, address);
-	if (res) return res;
-
-	res = sysNetSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (res < 0) return res;
-	*s  = res;
-
-	// TODO: RPCS3 makes sockets non blocking by default anyways ?
-	/*if (nonblocking) {
-		int blocking_raw = -1;
-		ioctl(*s, FIONBIO, &blocking_raw);
-	}*/
-
-	addr.v4.sin_family = AF_INET;
-	addr.v4.sin_port   = htons(port);
-
-	return sysNetConnect(*s, &addr.raw, sizeof(addr.v4));
-}
-
-cc_result Socket_Read(cc_socket s, cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	int res = sysNetRecvfrom(s, data, count, 0, NULL, NULL);
-	if (res < 0) return res;
-	
-	*modified = res; return 0;
-}
-
-cc_result Socket_Write(cc_socket s, const cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	int res = sysNetSendto(s, data, count, 0, NULL, 0);
-	if (res < 0) return res;
-	
-	*modified = res; return 0;
-}
-
-void Socket_Close(cc_socket s) {
-	sysNetShutdown(s, SHUT_RDWR);
-	sysNetClose(s);
-}
-
-LV2_SYSCALL CC_sysNetPoll(struct pollfd* fds, s32 nfds, s32 ms)
-{
-	lv2syscall3(715, (u64)fds, nfds, ms);
-	return_to_user_prog(s32);
-}
-
-static cc_result Socket_Poll(cc_socket s, int mode, cc_bool* success) {
-	struct pollfd pfd;
-	int flags, res;
-
-	pfd.fd     = s;
-	pfd.events = mode == SOCKET_POLL_READ ? POLLIN : POLLOUT;
-	
-	res = CC_sysNetPoll(&pfd, 1, 0);
-	if (res) return res;
-	
-	/* to match select, closed socket still counts as readable */
-	flags    = mode == SOCKET_POLL_READ ? (POLLIN | POLLHUP) : POLLOUT;
-	*success = (pfd.revents & flags) != 0;
-	return 0;
-}
-
-cc_result Socket_CheckReadable(cc_socket s, cc_bool* readable) {
-	return Socket_Poll(s, SOCKET_POLL_READ, readable);
-}
-
-cc_result Socket_CheckWritable(cc_socket s, cc_bool* writable) {
-	socklen_t resultSize = sizeof(socklen_t);
-	cc_result res = Socket_Poll(s, SOCKET_POLL_WRITE, writable);
-	if (res || *writable) return res;
-
-	/* https://stackoverflow.com/questions/29479953/so-error-value-after-successful-socket-operation */
-	netGetSockOpt(s, SOL_SOCKET, SO_ERROR, &res, &resultSize);
-	return res;
-}
-
 
 /*########################################################################################################################*
 *--------------------------------------------------------Platform---------------------------------------------------------*

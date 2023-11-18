@@ -14,7 +14,6 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <sys/socket.h>
 #include <poll.h>
 #include <time.h>
 #include <kos.h>
@@ -23,8 +22,8 @@ KOS_INIT_FLAGS(INIT_DEFAULT | INIT_NET);
 
 const cc_result ReturnCode_FileShareViolation = 1000000000; // not used
 const cc_result ReturnCode_FileNotFound     = ENOENT;
-const cc_result ReturnCode_SocketInProgess  = EINPROGRESS;
-const cc_result ReturnCode_SocketWouldBlock = EWOULDBLOCK;
+const cc_result ReturnCode_SocketInProgess = 567456;
+const cc_result ReturnCode_SocketWouldBlock = 675364;
 const cc_result ReturnCode_DirectoryExists  = EEXIST;
 const char* Platform_AppNameSuffix = " Dreamcast";
 
@@ -280,137 +279,6 @@ void Waitable_WaitFor(void* handle, cc_uint32 milliseconds) {
 	if (err != ETIMEDOUT) Logger_Abort2(err, "Event timed wait");
 }
 
-
-/*########################################################################################################################*
-*---------------------------------------------------------Socket----------------------------------------------------------*
-*#########################################################################################################################*/
-union SocketAddress {
-	struct sockaddr raw;
-	struct sockaddr_in  v4;
-	#ifdef AF_INET6
-	struct sockaddr_in6 v6;
-	struct sockaddr_storage total;
-	#endif
-};
-
-static int ParseHost(union SocketAddress* addr, const char* host) {
-	struct addrinfo hints = { 0 };
-	struct addrinfo* result;
-	struct addrinfo* cur;
-	int family = 0, res;
-
-	hints.ai_family   = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-
-	res = getaddrinfo(host, NULL, &hints, &result);
-	if (res) return 0;
-
-	for (cur = result; cur; cur = cur->ai_next) {
-		if (cur->ai_family != AF_INET) continue;
-		family = AF_INET;
-
-		Mem_Copy(addr, cur->ai_addr, cur->ai_addrlen);
-		break;
-	}
-
-	freeaddrinfo(result);
-	return family;
-}
-
-static int ParseAddress(union SocketAddress* addr, const cc_string* address) {
-	char str[NATIVE_STR_LEN];
-	String_EncodeUtf8(str, address);
-
-	if (inet_pton(AF_INET,  str, &addr->v4.sin_addr)  > 0) return AF_INET;
-	#ifdef AF_INET6
-	if (inet_pton(AF_INET6, str, &addr->v6.sin6_addr) > 0) return AF_INET6;
-	#endif
-	return ParseHost(addr, str);
-}
-
-int Socket_ValidAddress(const cc_string* address) {
-	union SocketAddress addr;
-	return ParseAddress(&addr, address);
-}
-
-cc_result Socket_Connect(cc_socket* s, const cc_string* address, int port, cc_bool nonblocking) {
-	int family, addrSize = 0;
-	union SocketAddress addr;
-	cc_result res;
-
-	*s = -1;
-	if (!(family = ParseAddress(&addr, address)))
-		return ERR_INVALID_ARGUMENT;
-
-	*s = socket(family, SOCK_STREAM, IPPROTO_TCP);
-	if (*s == -1) return errno;
-
-	if (nonblocking) {
-		fcntl(*s, F_SETFL, O_NONBLOCK);
-	}
-
-	#ifdef AF_INET6
-	if (family == AF_INET6) {
-		addr.v6.sin6_family = AF_INET6;
-		addr.v6.sin6_port   = htons(port);
-		addrSize = sizeof(addr.v6);
-	}
-	#endif
-	if (family == AF_INET) {
-		addr.v4.sin_family  = AF_INET;
-		addr.v4.sin_port    = htons(port);
-		addrSize = sizeof(addr.v4);
-	}
-
-	res = connect(*s, &addr.raw, addrSize);
-	return res == -1 ? errno : 0;
-}
-
-cc_result Socket_Read(cc_socket s, cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	int recvCount = recv(s, data, count, 0);
-	if (recvCount != -1) { *modified = recvCount; return 0; }
-	*modified = 0; return errno;
-}
-
-cc_result Socket_Write(cc_socket s, const cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	int sentCount = send(s, data, count, 0);
-	if (sentCount != -1) { *modified = sentCount; return 0; }
-	*modified = 0; return errno;
-}
-
-void Socket_Close(cc_socket s) {
-	shutdown(s, SHUT_RDWR);
-	close(s);
-}
-
-static cc_result Socket_Poll(cc_socket s, int mode, cc_bool* success) {
-	struct pollfd pfd;
-	int flags;
-
-	pfd.fd     = s;
-	pfd.events = mode == SOCKET_POLL_READ ? POLLIN : POLLOUT;
-	if (poll(&pfd, 1, 0) == -1) { *success = false; return errno; }
-	
-	/* to match select, closed socket still counts as readable */
-	flags    = mode == SOCKET_POLL_READ ? (POLLIN | POLLHUP) : POLLOUT;
-	*success = (pfd.revents & flags) != 0;
-	return 0;
-}
-
-cc_result Socket_CheckReadable(cc_socket s, cc_bool* readable) {
-	return Socket_Poll(s, SOCKET_POLL_READ, readable);
-}
-
-cc_result Socket_CheckWritable(cc_socket s, cc_bool* writable) {
-	socklen_t resultSize = sizeof(socklen_t);
-	cc_result res = Socket_Poll(s, SOCKET_POLL_WRITE, writable);
-	if (res || *writable) return res;
-
-	/* https://stackoverflow.com/questions/29479953/so-error-value-after-successful-socket-operation */
-	getsockopt(s, SOL_SOCKET, SO_ERROR, &res, &resultSize);
-	return res;
-}
 
 
 /*########################################################################################################################*

@@ -33,8 +33,8 @@
 
 const cc_result ReturnCode_FileShareViolation = 1000000000; /* Not used in web filesystem backend */
 const cc_result ReturnCode_FileNotFound     = _ENOENT;
-const cc_result ReturnCode_SocketInProgess  = _EINPROGRESS;
-const cc_result ReturnCode_SocketWouldBlock = _EAGAIN;
+const cc_result ReturnCode_SocketInProgess = 567456;
+const cc_result ReturnCode_SocketWouldBlock = 675364;
 const cc_result ReturnCode_DirectoryExists  = _EEXIST;
 const char* Platform_AppNameSuffix = "";
 cc_bool Platform_SingleProcess;
@@ -249,76 +249,6 @@ void  Waitable_WaitFor(void* handle, cc_uint32 milliseconds) { }
 *#########################################################################################################################*/
 void Platform_LoadSysFonts(void) { }
 
-
-/*########################################################################################################################*
-*---------------------------------------------------------Socket----------------------------------------------------------*
-*#########################################################################################################################*/
-extern void interop_InitSockets(void);
-int Socket_ValidAddress(const cc_string* address) { return true; }
-
-extern int interop_SocketCreate(void);
-extern int interop_SocketConnect(int sock, const char* addr, int port);
-cc_result Socket_Connect(cc_socket* s, const cc_string* address, int port, cc_bool nonblocking) {
-	char addr[NATIVE_STR_LEN];
-	int res;
-	String_EncodeUtf8(addr, address);
-
-	*s  = interop_SocketCreate();
-	/* returned result is negative for error */
-	res = -interop_SocketConnect(*s, addr, port);
-
-	/* error returned when invalid address provided */
-	if (res == _EHOSTUNREACH) return ERR_INVALID_ARGUMENT;
-	return res;
-}
-
-extern int interop_SocketRecv(int sock, void* data, int len);
-cc_result Socket_Read(cc_socket s, cc_uint8* data, cc_uint32 count, cc_uint32* read) {
-	int res; 
-	*read = 0;
-
-	/* interop_SocketRecv only reads one WebSocket frame at most, hence call it multiple times */
-	while (count) {
-		/* returned result is negative for error */
-		res = interop_SocketRecv(s, data, count);
-
-		if (res >= 0) {
-			*read += res;
-			data  += res; count -= res;
-		} else {
-			/* EAGAIN when no more data available */
-			if (res == -_EAGAIN) return *read == 0 ? _EAGAIN : 0;
-
-			return -res;
-		}
-	}
-	return 0;
-}
-
-extern int interop_SocketSend(int sock, const void* data, int len);
-cc_result Socket_Write(cc_socket s, const cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	/* returned result is negative for error */
-	int res = interop_SocketSend(s, data, count);
-
-	if (res >= 0) {
-		*modified = res; return 0;
-	} else {
-		*modified = 0; return -res;
-	}
-}
-
-extern int interop_SocketClose(int sock);
-void Socket_Close(cc_socket s) {
-	interop_SocketClose(s);
-}
-
-extern int interop_SocketWritable(int sock, cc_bool* writable);
-cc_result Socket_CheckWritable(cc_socket s, cc_bool* writable) {
-	/* returned result is negative for error */
-	return -interop_SocketWritable(s, writable);
-}
-
-
 /*########################################################################################################################*
 *-----------------------------------------------------Process/Module------------------------------------------------------*
 *#########################################################################################################################*/
@@ -372,7 +302,6 @@ extern void interop_InitModule(void);
 void Platform_Init(void) {
 	interop_InitModule();
 	interop_InitFilesystem();
-	interop_InitSockets();
 }
 void Platform_Free(void) { }
 

@@ -29,8 +29,8 @@
 
 const cc_result ReturnCode_FileShareViolation = 1000000000; /* TODO: not used apparently */
 const cc_result ReturnCode_FileNotFound     = ENOENT;
-const cc_result ReturnCode_SocketInProgess  = -EINPROGRESS; // net_XYZ error results are negative
-const cc_result ReturnCode_SocketWouldBlock = -EWOULDBLOCK;
+const cc_result ReturnCode_SocketInProgess = 567456;
+const cc_result ReturnCode_SocketWouldBlock = 675364;
 const cc_result ReturnCode_DirectoryExists  = EEXIST;
 #ifdef HW_RVL
 const char* Platform_AppNameSuffix = " Wii";
@@ -358,156 +358,6 @@ void Waitable_WaitFor(void* handle, cc_uint32 milliseconds) {
 
 
 /*########################################################################################################################*
-*---------------------------------------------------------Socket----------------------------------------------------------*
-*#########################################################################################################################*/
-union SocketAddress {
-	struct sockaddr raw;
-	struct sockaddr_in v4;
-};
-
-static int ParseHost(union SocketAddress* addr, const char* host) {
-#ifdef HW_RVL
-	struct hostent* res = net_gethostbyname(host);
-	// avoid confusion with SSL error codes
-	// e.g. FFFF FFF7 > FF00 FFF7
-	if (!res) return -0xFF0000 + errno;
-	
-	// Must have at least one IPv4 address
-	if (res->h_addrtype != AF_INET) return ERR_INVALID_ARGUMENT;
-	if (!res->h_addr_list[0])       return ERR_INVALID_ARGUMENT;
-
-	addr->v4.sin_addr = *(struct in_addr*)res->h_addr_list[0];
-	return 0;
-#else
-	// DNS resolution not implemented in gamecube libbba
-	return ERR_NOT_SUPPORTED;
-#endif
-}
-
-static int ParseAddress(union SocketAddress* addr, const cc_string* address) {
-	char str[NATIVE_STR_LEN];
-	String_EncodeUtf8(str, address);
-
-	if (inet_aton(str, &addr->v4.sin_addr) > 0) return 0;
-	return ParseHost(addr, str);
-}
-
-int Socket_ValidAddress(const cc_string* address) {
-	union SocketAddress addr;
-	return ParseAddress(&addr, address) == 0;
-}
-
-cc_result Socket_Connect(cc_socket* s, const cc_string* address, int port, cc_bool nonblocking) {
-	union SocketAddress addr;
-	int res;
-
-	*s = -1;
-	if ((res = ParseAddress(&addr, address))) return res;
-
-	*s = net_socket(AF_INET, SOCK_STREAM, 0);
-	if (*s < 0) return *s;
-
-	if (nonblocking) {
-		int blocking_raw = -1; /* non-blocking mode */
-		net_ioctl(*s, FIONBIO, &blocking_raw);
-	}
-
-	addr.v4.sin_family = AF_INET;
-	addr.v4.sin_port   = htons(port);
-
-	res = net_connect(*s, &addr.raw, sizeof(addr.v4));
-	return res < 0 ? res : 0;
-}
-
-cc_result Socket_Read(cc_socket s, cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	int res = net_recv(s, data, count, 0);
-	if (res < 0) { *modified = 0; return res; }
-	
-	*modified = res; return 0;
-}
-
-cc_result Socket_Write(cc_socket s, const cc_uint8* data, cc_uint32 count, cc_uint32* modified) {
-	int res = net_send(s, data, count, 0);
-	if (res < 0) { *modified = 0; return res; }
-	
-	*modified = res; return 0;
-}
-
-void Socket_Close(cc_socket s) {
-	net_shutdown(s, 2); // SHUT_RDWR = 2
-	net_close(s);
-}
-
-#ifdef HW_RVL
-// libogc only implements net_poll for wii currently
-static cc_result Socket_Poll(cc_socket s, int mode, cc_bool* success) {
-	struct pollsd pfd;
-	pfd.socket = s;
-	pfd.events = mode == SOCKET_POLL_READ ? POLLIN : POLLOUT;
-	
-	int res = net_poll(&pfd, 1, 0);
-	if (res < 0) { *success = false; return res; }
-	
-	// to match select, closed socket still counts as readable
-	int flags = mode == SOCKET_POLL_READ ? (POLLIN | POLLHUP) : POLLOUT;
-	*success  = (pfd.revents & flags) != 0;
-	return 0;
-}
-#else
-// libogc only implements net_select for gamecube currently
-static cc_result Socket_Poll(cc_socket s, int mode, cc_bool* success) {
-	fd_set set;
-	struct timeval time = { 0 };
-	int res; // number of 'ready' sockets
-	FD_ZERO(&set);
-	FD_SET(s, &set);
-	if (mode == SOCKET_POLL_READ) {
-		res = net_select(s + 1, &set, NULL, NULL, &time);
-	} else {
-		res = net_select(s + 1, NULL, &set, NULL, &time);
-	}
-	if (res < 0) { *success = false; return res; }
-	*success = FD_ISSET(s, &set) != 0; return 0;
-}
-#endif
-
-cc_result Socket_CheckReadable(cc_socket s, cc_bool* readable) {
-	return Socket_Poll(s, SOCKET_POLL_READ, readable);
-}
-
-cc_result Socket_CheckWritable(cc_socket s, cc_bool* writable) {
-	u32 resultSize = sizeof(u32);
-	cc_result res  = Socket_Poll(s, SOCKET_POLL_WRITE, writable);
-	if (res || *writable) return res;
-
-	return 0;
-	// TODO FIX with updated devkitpro ???
-	
-	/* https://stackoverflow.com/questions/29479953/so-error-value-after-successful-socket-operation */
-	net_getsockopt(s, SOL_SOCKET, SO_ERROR, &res, resultSize);
-	return res;
-}
-static void InitSockets(void) {
-#ifdef HW_RVL
-	int ret = net_init();
-	Platform_Log1("Network setup result: %i", &ret);
-#else
-	// https://github.com/devkitPro/wii-examples/blob/master/devices/network/sockettest/source/sockettest.c
-	char localip[16] = {0};
-	char netmask[16] = {0};
-	char gateway[16] = {0};
-	
-	int ret = if_config(localip, netmask, gateway, TRUE, 20);
-	if (ret >= 0) {
-		Platform_Log3("Network ip: %c, gw: %c, mask %c", localip, gateway, netmask);
-	} else {
-		Platform_Log1("Network setup failed: %i", &ret);
-	}
-#endif
-}
-
-
-/*########################################################################################################################*
 *--------------------------------------------------------Platform---------------------------------------------------------*
 *#########################################################################################################################*/
 static void AppendDevice(cc_string* path, char* cwd) {
@@ -549,8 +399,6 @@ void Platform_Init(void) {
 	fat_available = fatInitDefault();
 	FindRootDirectory();
 	CreateRootDirectory();
-	
-	InitSockets();
 }
 void Platform_Free(void) { }
 

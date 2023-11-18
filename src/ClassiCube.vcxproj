@@ -534,20 +534,6 @@
     <ClCompile Include="Window_X11.c" />
     <ClCompile Include="Window_Xbox.c" />
     <ClCompile Include="World.c" />
-    <ClCompile Include="_autofit.c" />
-    <ClCompile Include="_cff.c" />
-    <ClCompile Include="_ftbase.c" />
-    <ClCompile Include="_ftbitmap.c" />
-    <ClCompile Include="_ftglyph.c" />
-    <ClCompile Include="_ftinit.c" />
-    <ClCompile Include="_ftsynth.c" />
-    <ClCompile Include="_psaux.c" />
-    <ClCompile Include="_pshinter.c" />
-    <ClCompile Include="_psmodule.c" />
-    <ClCompile Include="_sfnt.c" />
-    <ClCompile Include="_smooth.c" />
-    <ClCompile Include="_truetype.c" />
-    <ClCompile Include="_type1.c" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\misc\windows\CCicon.rc" />

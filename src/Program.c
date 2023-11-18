@@ -25,6 +25,21 @@ static void RunGame(void) {
 	Game_Run(width, height, &title);
 }
 
+// Enable some nice features
+CC_NOINLINE static void ChooseMode_Click(cc_bool classic, cc_bool classicHacks) {
+	Options_SetBool(OPT_CLASSIC_MODE, classic);
+	if (classic) Options_SetBool(OPT_CLASSIC_HACKS, classicHacks);
+
+	Options_SetBool(OPT_CUSTOM_BLOCKS, !classic);
+	Options_SetBool(OPT_CPE, !classic);
+	Options_SetBool(OPT_SERVER_TEXTURES, !classic);
+	Options_SetBool(OPT_CLASSIC_TABLIST, classic);
+	Options_SetBool(OPT_CLASSIC_OPTIONS, classic);
+
+	Options_SaveIfChanged();
+}
+
+
 static void SetupProgram(int argc, char** argv) {
 	static char ipBuffer[STRING_SIZE];
 	cc_result res;
@@ -42,6 +57,7 @@ static void SetupProgram(int argc, char** argv) {
 
 static int RunProgram() {
 	String_FromReadonly(&Game_Username, "Singleplayer");
+	ChooseMode_Click(false, false);
 	RunGame();
 	return 0;
 }

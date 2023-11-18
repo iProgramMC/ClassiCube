@@ -118,7 +118,7 @@ typedef cc_uint8  cc_bool;
 #endif
 
 
-#define CC_BUILD_FREETYPE
+/*#define CC_BUILD_FREETYPE*/
 /*#define CC_BUILD_GL11*/
 #ifndef CC_BUILD_MANUAL
 #if defined NXDK

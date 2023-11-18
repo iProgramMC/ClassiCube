@@ -353,7 +353,7 @@ static void LogInvalidSkin(cc_result res, const cc_string* skin, const cc_uint8*
 
 static void Entity_CheckSkin(struct Entity* e) {
 	struct Entity* first;
-	struct HttpRequest item;
+	//struct HttpRequest item;
 	struct Stream mem;
 	struct Bitmap bmp;
 	cc_string skin;
@@ -363,35 +363,8 @@ static void Entity_CheckSkin(struct Entity* e) {
 	/* Don't check skin if don't have to */
 	if (!e->Model->usesSkin) return;
 	if (e->SkinFetchState == SKIN_FETCH_COMPLETED) return;
-	skin = String_FromRawArray(e->SkinRaw);
 
-	if (!e->SkinFetchState) {
-		first = Entity_FirstOtherWithSameSkinAndFetchedSkin(e);
-		flags = e == &LocalPlayer_Instance.Base ? HTTP_FLAG_NOCACHE : 0;
-
-		if (!first) {
-			e->_skinReqID     = Http_AsyncGetSkin(&skin, flags);
-			e->SkinFetchState = SKIN_FETCH_DOWNLOADING;
-		} else {
-			Entity_CopySkin(e, first);
-			e->SkinFetchState = SKIN_FETCH_COMPLETED;
-			return;
-		}
-	}
-
-	if (!Http_GetResult(e->_skinReqID, &item)) return;
-
-	if (!item.success) { 
-		Entity_SetSkinAll(e, true);
-	} else {
-		Stream_ReadonlyMemory(&mem, item.data, item.size);
-
-		if ((res = ApplySkin(e, &bmp, &mem, &skin))) {
-			LogInvalidSkin(res, &skin, item.data, item.size);
-		}
-		Mem_Free(bmp.scan0);
-	}
-	HttpRequest_Free(&item);
+	Entity_SetSkinAll(e, true);
 }
 
 /* Returns true if no other entities are sharing this skin texture */

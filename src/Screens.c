@@ -1004,21 +1004,6 @@ static void ChatScreen_EnterChatInput(struct ChatScreen* s, cc_bool close) {
 }
 
 static void ChatScreen_UpdateTexpackStatus(struct ChatScreen* s) {
-	int progress = Http_CheckProgress(TexturePack_ReqID);
-	cc_string msg; char msgBuffer[STRING_SIZE];
-	if (progress == s->lastDownloadStatus) return;
-
-	s->lastDownloadStatus = progress;
-	String_InitArray(msg, msgBuffer);
-
-	if (progress == HTTP_PROGRESS_MAKING_REQUEST) {
-		String_AppendConst(&msg, "&eRetrieving texture pack..");
-	} else if (progress == HTTP_PROGRESS_FETCHING_DATA) {
-		String_AppendConst(&msg, "&eDownloading texture pack");
-	} else if (progress >= 0 && progress <= 100) {
-		String_Format1(&msg, "&eDownloading texture pack (&7%i&e%%)", &progress);
-	}
-	Chat_AddOf(&msg, MSG_TYPE_EXTRASTATUS_1);
 }
 
 static void ChatScreen_ColCodeChanged(void* screen, int code) {
@@ -1453,7 +1438,6 @@ static const struct ScreenVTABLE ChatScreen_VTABLE = {
 };
 void ChatScreen_Show(void) {
 	struct ChatScreen* s  = &ChatScreen_Instance;
-	s->lastDownloadStatus = HTTP_PROGRESS_NOT_WORKING_ON;
 
 	s->VTABLE = &ChatScreen_VTABLE;
 	Gui_Chat  = s;

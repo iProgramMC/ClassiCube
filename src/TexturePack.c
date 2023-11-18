@@ -320,29 +320,13 @@ CC_NOINLINE static void SetCachedTag(const cc_string* url, struct StringsBuffer*
 
 /* Updates cached data, ETag, and Last-Modified for the given URL */
 static void UpdateCache(struct HttpRequest* req) {
-	cc_string url, altPath, value;
-	cc_string path; char pathBuffer[FILENAME_SIZE];
-	cc_result res;
-	url = String_FromRawArray(req->url);
-
-	value = String_FromRawArray(req->etag);
-	SetCachedTag(&url, &etagCache,    &value, ETAGS_TXT);
-	value = String_FromRawArray(req->lastModified);
-	SetCachedTag(&url, &lastModCache, &value, LASTMOD_TXT);
-
-	String_InitArray(path, pathBuffer);
-	altPath = String_Empty;
-	MakeCachePath(&path, &altPath, &url);
-
-	res = Stream_WriteAllTo(&path, req->data, req->size);
-	if (res) { Logger_SysWarn2(res, "caching", &url); }
 }
 
 
 /*########################################################################################################################*
 *-------------------------------------------------------TexturePack-------------------------------------------------------*
 *#########################################################################################################################*/
-static char textureUrlBuffer[URL_MAX_SIZE];
+static char textureUrlBuffer[FILENAME_SIZE];
 static char texpackPathBuffer[FILENAME_SIZE];
 
 cc_string TexturePack_Url  = String_FromArray(textureUrlBuffer);
@@ -468,55 +452,13 @@ cc_result TexturePack_ExtractCurrent(cc_bool forceReload) {
 
 /* Extracts and updates cache for the downloaded texture pack */
 static void ApplyDownloaded(struct HttpRequest* item) {
-	struct Stream mem;
-	cc_string url;
-
-	url = String_FromRawArray(item->url);
-	UpdateCache(item);
-	/* Took too long to download and is no longer active texture pack */
-	if (!String_Equals(&TexturePack_Url, &url)) return;
-
-	Stream_ReadonlyMemory(&mem, item->data, item->size);
-	ExtractFrom(&mem, &url);
-	usingDefault = false;
 }
 
 void TexturePack_CheckPending(void) {
-	struct HttpRequest item;
-	if (!Http_GetResult(TexturePack_ReqID, &item)) return;
-
-	if (item.success) {
-		ApplyDownloaded(&item);
-	} else if (item.result) {
-		Http_LogError("trying to download texture pack", &item);
-	} else if (item.statusCode == 200 || item.statusCode == 304) {
-		/* Empty responses is okay for these status codes, so don't log an error */
-	} else if (item.statusCode == 404) {
-		Chat_AddRaw("&c404 Not Found error when trying to download texture pack");
-		Chat_AddRaw("  &cThe texture pack URL may be incorrect or no longer exist");
-	} else if (item.statusCode == 401 || item.statusCode == 403) {
-		Chat_Add1("&c%i Not Authorised error when trying to download texture pack", &item.statusCode);
-		Chat_AddRaw("  &cThe texture pack URL may not be publicly shared");
-	} else {
-		Chat_Add1("&c%i error when trying to download texture pack", &item.statusCode);
-	}
-	HttpRequest_Free(&item);
 }
 
 /* Asynchronously downloads the given texture pack */
 static void DownloadAsync(const cc_string* url) {
-	cc_string etag = String_Empty;
-	cc_string time = String_Empty;
-
-	/* Only retrieve etag/last-modified headers if the file exists */
-	/* This inconsistency can occur if user deleted some cached files */
-	if (IsCached(url)) {
-		time = GetCachedLastModified(url);
-		etag = GetCachedETag(url);
-	}
-
-	Http_TryCancel(TexturePack_ReqID);
-	TexturePack_ReqID = Http_AsyncGetDataEx(url, HTTP_FLAG_PRIORITY, &time, &etag, NULL);
 }
 
 void TexturePack_Extract(const cc_string* url) {

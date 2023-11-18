@@ -402,7 +402,7 @@ static void Game_Load(void) {
 	Game_AddComponent(&TabList_Component);
 	Game_AddComponent(&Models_Component);
 	Game_AddComponent(&Entities_Component);
-	Game_AddComponent(&Http_Component);
+	//Game_AddComponent(&Http_Component);
 	Game_AddComponent(&Lighting_Component);
 
 	Game_AddComponent(&Animations_Component);

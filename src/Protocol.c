@@ -267,7 +267,7 @@ static void WoM_CheckMotd(void) {
 
 	/* Ensure that if the user quickly changes to a different world, env settings from old world aren't
 	applied in the new world if the async 'get env request' didn't complete before the old world was unloaded */
-	wom_identifier = Http_AsyncGetData(&url, HTTP_FLAG_PRIORITY);
+	wom_identifier = -1;// Http_AsyncGetData(&url, HTTP_FLAG_PRIORITY);
 	wom_sendId = true;
 }
 
@@ -287,6 +287,7 @@ static PackedCol WoM_ParseCol(const cc_string* value, PackedCol defaultColor) {
 }
 
 static void WoM_ParseConfig(struct HttpRequest* item) {
+	/*
 	cc_string line; char lineBuffer[STRING_SIZE * 2];
 	struct Stream mem;
 	cc_string key, value;
@@ -317,6 +318,7 @@ static void WoM_ParseConfig(struct HttpRequest* item) {
 			Chat_AddOf(&value, MSG_TYPE_STATUS_2);
 		}
 	}
+	*/
 }
 
 static void WoM_Reset(void) {
@@ -325,11 +327,13 @@ static void WoM_Reset(void) {
 }
 
 static void WoM_Tick(void) {
+	/*
 	struct HttpRequest item;
 	if (!Http_GetResult(wom_identifier, &item)) return;
 
 	if (item.success) WoM_ParseConfig(&item);
 	HttpRequest_Free(&item);
+	*/
 }
 
 
@@ -1292,7 +1296,7 @@ static void CPE_SetTextColor(cc_uint8* data) {
 }
 
 static void CPE_SetMapEnvUrl(cc_uint8* data) {
-	char urlBuffer[URL_MAX_SIZE];
+	char urlBuffer[FILENAME_SIZE];
 	cc_string url;
 
 	cc_string part1 = UNSAFE_GetString(data);
